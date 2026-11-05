@@ -12,3 +12,7 @@
 ## Development Log
 
 (Write what I tried, what failed, and what fixed it.)
+
+- PlatformIO created a nested smart_switch/smart_switch folder. Moved files up one level.
+  Build failed with FileNotFoundError on the old nested src path (stale .pio cache).
+  Fixed by deleting .pio and reloading the window.
