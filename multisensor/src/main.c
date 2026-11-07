@@ -8,14 +8,15 @@
 #include "esp_log.h"
 #include "esp_adc/adc_oneshot.h"
 #include "dht11.h"
+#include "light_map.h"
 #include "state_machine.h"
 
 #define DHT_GPIO         GPIO_NUM_4
 #define LDR_ADC_CHANNEL  ADC_CHANNEL_4   // GPIO5 on ESP32-S3 = ADC1 channel 4
 #define LDR_INVERTED     0               // your module: brighter = higher, so 0
 
-#define HUMIDITY_LIMIT        85 / % : warning above this
-#define HUMIDITY_LIMIT_CLEAR  80 / %: back to normal below this (hysteresis)
+#define HUMIDITY_LIMIT        85   // % : warning above this
+#define HUMIDITY_LIMIT_CLEAR  80   // % : back to normal below this (hysteresis)
 #define DHT_MAX_FAILS         3    // consecutive failed reads before FAULT
 
 // Event group bits
@@ -105,10 +106,7 @@ static void ldr_task(void *arg)
     while (true) {
         int raw = 0;
         if (adc_oneshot_read(adc, LDR_ADC_CHANNEL, &raw) == ESP_OK) {
-            int light = raw * 100 / 4095;
-#if LDR_INVERTED
-            light = 100 - light;
-#endif
+            int light = light_map_percent(raw, LDR_INVERTED);
             sensor_reading_t r = {
                 .type = READING_LIGHT,
                 .light = light,
