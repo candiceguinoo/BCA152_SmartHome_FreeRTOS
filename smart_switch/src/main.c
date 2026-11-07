@@ -3,6 +3,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
+#include "freertos/semphr.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
 
@@ -20,7 +21,17 @@ typedef enum {
 } switch_event_t;
 
 static QueueHandle_t event_queue;
+static SemaphoreHandle_t log_mutex;
 static bool relay_state = false;
+
+// Only one task at a time may print, so log lines never interleave.
+static void safe_log(const char *msg)
+{
+    if (xSemaphoreTake(log_mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+        ESP_LOGI(TAG, "%s", msg);
+        xSemaphoreGive(log_mutex);
+    }
+}
 
 static void relay_set(bool on)
 {
@@ -30,7 +41,7 @@ static void relay_set(bool on)
 #else
     gpio_set_level(RELAY_GPIO, on ? 1 : 0);
 #endif
-    ESP_LOGI(TAG, "Relay %s", on ? "ON" : "OFF");
+    safe_log(on ? "Relay ON" : "Relay OFF");
 }
 
 static void led_task(void *arg)
@@ -68,6 +79,7 @@ static void button_task(void *arg)
             now != last_stable) {
             last_stable = now;
             if (last_stable == 0) {            // pressed
+                safe_log("Button pressed");
                 switch_event_t evt = EVT_TOGGLE;
                 xQueueSend(event_queue, &evt, 0);
             }
@@ -91,15 +103,16 @@ static void relay_task(void *arg)
 
 void app_main(void)
 {
-    ESP_LOGI(TAG, "Smart switch starting");
+    // Create the mutex and queue BEFORE any task or log call uses them
+    log_mutex = xSemaphoreCreateMutex();
+    event_queue = xQueueCreate(5, sizeof(switch_event_t));
+
+    safe_log("Smart switch starting");
 
     // Configure the relay pin and start with the relay off
     gpio_reset_pin(RELAY_GPIO);
     gpio_set_direction(RELAY_GPIO, GPIO_MODE_OUTPUT);
     relay_set(false);
-
-    // Create the queue BEFORE the tasks that use it
-    event_queue = xQueueCreate(5, sizeof(switch_event_t));
 
     xTaskCreate(led_task, "led_task", 2048, NULL, 5, NULL);
     xTaskCreate(button_task, "button_task", 2048, NULL, 5, NULL);
