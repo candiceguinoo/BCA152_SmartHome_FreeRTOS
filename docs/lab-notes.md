@@ -33,3 +33,7 @@
 
 - Added log_mutex (FreeRTOS mutex) and safe_log() so button_task and relay_task never
   print at the same time. Tested: one press gives "Button pressed" then "Relay ON/OFF".
+
+MULTISENSOR
+- Multisensor (ESP32-S3 N16R8, CH343 UART port on COM4) boots with 16 MB flash and custom
+  partitions.csv. Heartbeat task prints every 1000 ms.
