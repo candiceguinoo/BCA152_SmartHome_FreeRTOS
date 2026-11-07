@@ -20,3 +20,7 @@
 - LED did not blink on GPIO2 even though the serial log showed toggling. Moved the external
   LED to GPIO4 and it blinks correctly. GPIO2 is a boot-strapping pin, so it may be affected
   by the board's onboard circuitry.
+
+- Relay task on GPIO19 (IN1 of a 2-channel module) toggles every 2 s. Serial log timestamps
+  confirm 2000 ms period. Relay clicks match the log. Flash driver prints a harmless
+  "generic chip" notice at boot.
