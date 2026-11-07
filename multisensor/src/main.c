@@ -14,8 +14,8 @@
 #define LDR_ADC_CHANNEL  ADC_CHANNEL_4   // GPIO5 on ESP32-S3 = ADC1 channel 4
 #define LDR_INVERTED     0               // your module: brighter = higher, so 0
 
-#define HUMIDITY_LIMIT        85   // % : warning above this
-#define HUMIDITY_LIMIT_CLEAR  80   // % : back to normal below this (hysteresis)
+#define HUMIDITY_LIMIT        55  // % : warning above this
+#define HUMIDITY_LIMIT_CLEAR  50 // % : back to normal below this (hysteresis)
 #define DHT_MAX_FAILS         3    // consecutive failed reads before FAULT
 
 // Event group bits
