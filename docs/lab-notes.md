@@ -34,7 +34,7 @@
 - Added log_mutex (FreeRTOS mutex) and safe_log() so button_task and relay_task never
   print at the same time. Tested: one press gives "Button pressed" then "Relay ON/OFF".
 
-MULTISENSOR
+## Multisensor
 - Multisensor (ESP32-S3 N16R8, CH343 UART port on COM4) boots with 16 MB flash and custom
   partitions.csv. Heartbeat task prints every 1000 ms.
 
@@ -74,3 +74,8 @@ MULTISENSOR
 - Upload failed with "No serial data received". Fixed by holding BOOT, tapping EN, releasing BOOT.
 - ESP32-S3 disappeared from the COM list. Fixed by replugging into the UART port.
 - Generated sdkconfig.* files were added to .gitignore.
+
+- Warning test: the air-conditioned room kept humidity at 36-47 %, so I temporarily lowered
+  HUMIDITY_LIMIT to 55 % and HUMIDITY_LIMIT_CLEAR to 50 %. Breathing on the DHT11 raised it
+  to 68-78 % and the state went NORMAL -> WARNING. After it dried, humidity fell to 49 % and
+  the state returned WARNING -> NORMAL. Restored the limits to 85 % / 80 %.
