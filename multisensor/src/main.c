@@ -1,6 +1,9 @@
+#include <stdarg.h>
+#include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
+#include "freertos/semphr.h"
 #include "esp_log.h"
 #include "esp_adc/adc_oneshot.h"
 #include "dht11.h"
@@ -24,6 +27,26 @@ typedef struct {
 } sensor_reading_t;
 
 static QueueHandle_t sensor_queue;
+static SemaphoreHandle_t log_mutex;
+
+// Only one task at a time may print, so log lines never interleave.
+static void safe_log(esp_log_level_t level, const char *fmt, ...)
+{
+    char buf[128];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, args);
+    va_end(args);
+
+    if (xSemaphoreTake(log_mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+        if (level == ESP_LOG_WARN) {
+            ESP_LOGW(TAG, "%s", buf);
+        } else {
+            ESP_LOGI(TAG, "%s", buf);
+        }
+        xSemaphoreGive(log_mutex);
+    }
+}
 
 static void dht_task(void *arg)
 {
@@ -38,7 +61,7 @@ static void dht_task(void *arg)
             };
             xQueueSend(sensor_queue, &r, 0);
         } else {
-            ESP_LOGW(TAG, "DHT11 read failed: %s", esp_err_to_name(err));
+            safe_log(ESP_LOG_WARN, "DHT11 read failed: %s", esp_err_to_name(err));
         }
         vTaskDelay(pdMS_TO_TICKS(2000));   // DHT11 needs at least 1 s between reads
     }
@@ -68,6 +91,8 @@ static void ldr_task(void *arg)
                 .light = light,
             };
             xQueueSend(sensor_queue, &r, 0);
+        } else {
+            safe_log(ESP_LOG_WARN, "ADC read failed");
         }
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
@@ -87,7 +112,7 @@ static void report_task(void *arg)
             } else {
                 light = r.light;
             }
-            ESP_LOGI(TAG, "Temp: %d C | Humidity: %d %% | Light: %d",
+            safe_log(ESP_LOG_INFO, "Temp: %d C | Humidity: %d %% | Light: %d",
                      temperature, humidity, light);
         }
     }
@@ -95,10 +120,11 @@ static void report_task(void *arg)
 
 void app_main(void)
 {
-    ESP_LOGI(TAG, "Multisensor starting");
-
-    // Create the queue BEFORE the tasks that use it
+    // Create the mutex and queue BEFORE any task or log call uses them
+    log_mutex = xSemaphoreCreateMutex();
     sensor_queue = xQueueCreate(10, sizeof(sensor_reading_t));
+
+    safe_log(ESP_LOG_INFO, "Multisensor starting");
 
     xTaskCreate(report_task, "report_task", 4096, NULL, 5, NULL);
     xTaskCreate(dht_task, "dht_task", 4096, NULL, 5, NULL);
