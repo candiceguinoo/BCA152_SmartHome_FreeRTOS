@@ -1,16 +1,29 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/queue.h"
 #include "esp_log.h"
 #include "esp_adc/adc_oneshot.h"
 #include "dht11.h"
 
 #define DHT_GPIO         GPIO_NUM_4
 #define LDR_ADC_CHANNEL  ADC_CHANNEL_4   // GPIO5 on ESP32-S3 = ADC1 channel 4
-
-// Set to 1 if your LDR module gives a LOWER AO value when it gets brighter.
-#define LDR_INVERTED     0
+#define LDR_INVERTED     0               // your module: brighter = higher, so 0
 
 static const char *TAG = "multisensor";
+
+typedef enum {
+    READING_DHT,
+    READING_LIGHT
+} reading_type_t;
+
+typedef struct {
+    reading_type_t type;
+    int temperature;   // used when type == READING_DHT
+    int humidity;      // used when type == READING_DHT
+    int light;         // used when type == READING_LIGHT (0-100)
+} sensor_reading_t;
+
+static QueueHandle_t sensor_queue;
 
 static void dht_task(void *arg)
 {
@@ -18,7 +31,12 @@ static void dht_task(void *arg)
         int temperature = 0, humidity = 0;
         esp_err_t err = dht11_read(DHT_GPIO, &temperature, &humidity);
         if (err == ESP_OK) {
-            ESP_LOGI(TAG, "Temperature: %d C, Humidity: %d %%", temperature, humidity);
+            sensor_reading_t r = {
+                .type = READING_DHT,
+                .temperature = temperature,
+                .humidity = humidity,
+            };
+            xQueueSend(sensor_queue, &r, 0);
         } else {
             ESP_LOGW(TAG, "DHT11 read failed: %s", esp_err_to_name(err));
         }
@@ -29,9 +47,7 @@ static void dht_task(void *arg)
 static void ldr_task(void *arg)
 {
     adc_oneshot_unit_handle_t adc;
-    adc_oneshot_unit_init_cfg_t unit_cfg = {
-        .unit_id = ADC_UNIT_1,
-    };
+    adc_oneshot_unit_init_cfg_t unit_cfg = { .unit_id = ADC_UNIT_1 };
     ESP_ERROR_CHECK(adc_oneshot_new_unit(&unit_cfg, &adc));
 
     adc_oneshot_chan_cfg_t chan_cfg = {
@@ -42,23 +58,49 @@ static void ldr_task(void *arg)
 
     while (true) {
         int raw = 0;
-        esp_err_t err = adc_oneshot_read(adc, LDR_ADC_CHANNEL, &raw);
-        if (err == ESP_OK) {
-            int light = raw * 100 / 4095;          // map 0-4095 to 0-100
+        if (adc_oneshot_read(adc, LDR_ADC_CHANNEL, &raw) == ESP_OK) {
+            int light = raw * 100 / 4095;
 #if LDR_INVERTED
             light = 100 - light;
 #endif
-            ESP_LOGI(TAG, "Light: raw=%d, intensity=%d", raw, light);
-        } else {
-            ESP_LOGW(TAG, "ADC read failed: %s", esp_err_to_name(err));
+            sensor_reading_t r = {
+                .type = READING_LIGHT,
+                .light = light,
+            };
+            xQueueSend(sensor_queue, &r, 0);
         }
         vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+}
+
+// Receives readings from both sensor tasks and prints one combined line.
+static void report_task(void *arg)
+{
+    sensor_reading_t r;
+    int temperature = 0, humidity = 0, light = 0;
+
+    while (true) {
+        if (xQueueReceive(sensor_queue, &r, portMAX_DELAY) == pdTRUE) {
+            if (r.type == READING_DHT) {
+                temperature = r.temperature;
+                humidity = r.humidity;
+            } else {
+                light = r.light;
+            }
+            ESP_LOGI(TAG, "Temp: %d C | Humidity: %d %% | Light: %d",
+                     temperature, humidity, light);
+        }
     }
 }
 
 void app_main(void)
 {
     ESP_LOGI(TAG, "Multisensor starting");
+
+    // Create the queue BEFORE the tasks that use it
+    sensor_queue = xQueueCreate(10, sizeof(sensor_reading_t));
+
+    xTaskCreate(report_task, "report_task", 4096, NULL, 5, NULL);
     xTaskCreate(dht_task, "dht_task", 4096, NULL, 5, NULL);
     xTaskCreate(ldr_task, "ldr_task", 4096, NULL, 5, NULL);
 }
