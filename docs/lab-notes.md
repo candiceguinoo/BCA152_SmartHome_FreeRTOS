@@ -37,3 +37,7 @@
 MULTISENSOR
 - Multisensor (ESP32-S3 N16R8, CH343 UART port on COM4) boots with 16 MB flash and custom
   partitions.csv. Heartbeat task prints every 1000 ms.
+
+- DHT11 (3-pin module) on GPIO4 read with a self-contained bit-banged driver.
+  Verified on hardware: 29 C / 74 % at rest, humidity rose to 93 % when breathed on.
+  DHT11 resolution is 1 C, accuracy about +/- 2 C.
