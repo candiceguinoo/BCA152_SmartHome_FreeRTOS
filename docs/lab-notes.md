@@ -30,3 +30,6 @@
 
 - Refactored: button_task now sends EVT_TOGGLE to a FreeRTOS queue (length 5).
   relay_task blocks on the queue and toggles the relay. Behavior on hardware unchanged.
+
+- Added log_mutex (FreeRTOS mutex) and safe_log() so button_task and relay_task never
+  print at the same time. Tested: one press gives "Button pressed" then "Relay ON/OFF".
