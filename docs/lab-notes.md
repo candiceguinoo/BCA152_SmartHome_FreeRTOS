@@ -46,3 +46,31 @@ MULTISENSOR
   Ambient raw about 600-900 (intensity 14-21), torch raw about 2700-3700 (intensity 66-91).
   Brighter light gives higher raw, so mapping is direct (LDR_INVERTED = 0).
   DHT11 and LDR tasks run together without problems.
+
+- Sensor data queue: dht_task and ldr_task send sensor_reading_t messages to a queue
+  (length 10). report_task receives them and prints one combined line:
+  "Temp | Humidity | Light". Verified on hardware.
+
+- Serial output on multisensor is protected by log_mutex through safe_log(), so lines
+  from different tasks never interleave.
+
+- State machine (state_machine.c) is a pure function: INIT, NORMAL, WARNING, FAULT.
+  Event group bits: BIT_DHT_OK, BIT_LDR_OK, BIT_DHT_FAULT, BIT_LIMIT_EXCEEDED,
+  BIT_LIMIT_CLEARED. state_task owns the state and wakes only when a bit is set.
+  Tested: INIT -> NORMAL at startup (327 ms). Pulling the DHT11 data wire gave 3
+  failed reads, then NORMAL -> FAULT. Replugging gave FAULT -> NORMAL.
+  FAULT needs 3 failed reads in a row because single DHT11 failures are normal.
+  Humidity thresholds use hysteresis (85 % on, 80 % off).
+
+## Troubleshooting
+
+- PlatformIO created a nested smart_switch/smart_switch folder. Moved the files up one level.
+- Stale .pio cache caused FileNotFoundError on the old path. Deleted .pio and rebuilt.
+- pio was not recognized in new terminals. Fixed with Set-Alias or the PlatformIO terminal.
+- Serial monitor showed garbage at 9600 baud. Fixed with -b 115200.
+- LED on GPIO2 did not blink. Moved the LED to GPIO4.
+- Build failed: missing partition table default_16MB.csv. Created my own partitions.csv.
+- Upload failed with "could not open port COMx" because I used the placeholder. Used pio device list.
+- Upload failed with "No serial data received". Fixed by holding BOOT, tapping EN, releasing BOOT.
+- ESP32-S3 disappeared from the COM list. Fixed by replugging into the UART port.
+- Generated sdkconfig.* files were added to .gitignore.
