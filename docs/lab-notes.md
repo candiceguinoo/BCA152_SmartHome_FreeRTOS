@@ -24,3 +24,6 @@
 - Relay task on GPIO19 (IN1 of a 2-channel module) toggles every 2 s. Serial log timestamps
   confirm 2000 ms period. Relay clicks match the log. Flash driver prints a harmless
   "generic chip" notice at boot.
+
+- BOOT button (GPIO0) debounced in software with a 50 ms stable-time check.
+  Tested on hardware: each press toggles the relay exactly once, no double toggles.
