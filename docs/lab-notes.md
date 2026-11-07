@@ -41,3 +41,8 @@ MULTISENSOR
 - DHT11 (3-pin module) on GPIO4 read with a self-contained bit-banged driver.
   Verified on hardware: 29 C / 74 % at rest, humidity rose to 93 % when breathed on.
   DHT11 resolution is 1 C, accuracy about +/- 2 C.
+
+- LDR module (VCC, GND, AO, DO) with on-board divider. AO on GPIO5 (ADC1 ch4), DO unused.
+  Ambient raw about 600-900 (intensity 14-21), torch raw about 2700-3700 (intensity 66-91).
+  Brighter light gives higher raw, so mapping is direct (LDR_INVERTED = 0).
+  DHT11 and LDR tasks run together without problems.
