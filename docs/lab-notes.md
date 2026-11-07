@@ -16,3 +16,7 @@
 - PlatformIO created a nested smart_switch/smart_switch folder. Moved files up one level.
   Build failed with FileNotFoundError on the old nested src path (stale .pio cache).
   Fixed by deleting .pio and reloading the window.
+
+- LED did not blink on GPIO2 even though the serial log showed toggling. Moved the external
+  LED to GPIO4 and it blinks correctly. GPIO2 is a boot-strapping pin, so it may be affected
+  by the board's onboard circuitry.
