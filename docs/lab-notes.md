@@ -27,3 +27,6 @@
 
 - BOOT button (GPIO0) debounced in software with a 50 ms stable-time check.
   Tested on hardware: each press toggles the relay exactly once, no double toggles.
+
+- Refactored: button_task now sends EVT_TOGGLE to a FreeRTOS queue (length 5).
+  relay_task blocks on the queue and toggles the relay. Behavior on hardware unchanged.
