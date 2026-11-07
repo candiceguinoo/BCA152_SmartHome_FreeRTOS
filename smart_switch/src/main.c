@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/queue.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
 
@@ -9,9 +10,16 @@
 #define RELAY_GPIO   GPIO_NUM_19
 #define BUTTON_GPIO  GPIO_NUM_0
 
+// Most relay modules are active-low. Set to 0 if yours is active-high.
 #define RELAY_ACTIVE_LOW 1
 
 static const char *TAG = "smart_switch";
+
+typedef enum {
+    EVT_TOGGLE
+} switch_event_t;
+
+static QueueHandle_t event_queue;
 static bool relay_state = false;
 
 static void relay_set(bool on)
@@ -29,6 +37,7 @@ static void led_task(void *arg)
 {
     gpio_reset_pin(LED_GPIO);
     gpio_set_direction(LED_GPIO, GPIO_MODE_OUTPUT);
+
     int level = 0;
     while (true) {
         level = !level;
@@ -37,6 +46,7 @@ static void led_task(void *arg)
     }
 }
 
+// Reads the BOOT button, debounces it, and sends an event to the queue.
 static void button_task(void *arg)
 {
     gpio_reset_pin(BUTTON_GPIO);
@@ -58,20 +68,40 @@ static void button_task(void *arg)
             now != last_stable) {
             last_stable = now;
             if (last_stable == 0) {            // pressed
-                relay_set(!relay_state);
+                switch_event_t evt = EVT_TOGGLE;
+                xQueueSend(event_queue, &evt, 0);
             }
         }
         vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
 
+// Waits for events from the queue and drives the relay.
+static void relay_task(void *arg)
+{
+    switch_event_t evt;
+    while (true) {
+        if (xQueueReceive(event_queue, &evt, portMAX_DELAY) == pdTRUE) {
+            if (evt == EVT_TOGGLE) {
+                relay_set(!relay_state);
+            }
+        }
+    }
+}
+
 void app_main(void)
 {
     ESP_LOGI(TAG, "Smart switch starting");
+
+    // Configure the relay pin and start with the relay off
     gpio_reset_pin(RELAY_GPIO);
     gpio_set_direction(RELAY_GPIO, GPIO_MODE_OUTPUT);
     relay_set(false);
 
+    // Create the queue BEFORE the tasks that use it
+    event_queue = xQueueCreate(5, sizeof(switch_event_t));
+
     xTaskCreate(led_task, "led_task", 2048, NULL, 5, NULL);
     xTaskCreate(button_task, "button_task", 2048, NULL, 5, NULL);
+    xTaskCreate(relay_task, "relay_task", 2048, NULL, 5, NULL);
 }
