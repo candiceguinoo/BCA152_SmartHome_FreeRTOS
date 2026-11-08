@@ -6,10 +6,13 @@
 #include "freertos/semphr.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
+#include "debounce.h"
 
 #define LED_GPIO     GPIO_NUM_4
 #define RELAY_GPIO   GPIO_NUM_19
 #define BUTTON_GPIO  GPIO_NUM_0
+
+#define DEBOUNCE_MS  50
 
 // Most relay modules are active-low. Set to 0 if yours is active-high.
 #define RELAY_ACTIVE_LOW 1
@@ -57,32 +60,23 @@ static void led_task(void *arg)
     }
 }
 
-// Reads the BOOT button, debounces it, and sends an event to the queue.
+// Reads the BOOT button, debounces it with the debounce module,
+// and sends an event to the queue on each accepted press.
 static void button_task(void *arg)
 {
     gpio_reset_pin(BUTTON_GPIO);
     gpio_set_direction(BUTTON_GPIO, GPIO_MODE_INPUT);
     gpio_set_pull_mode(BUTTON_GPIO, GPIO_PULLUP_ONLY);
 
-    int last_stable = 1;   // 1 = released
-    int last_read = 1;
-    TickType_t last_change = xTaskGetTickCount();
+    debounce_t deb;
+    debounce_init(&deb, DEBOUNCE_MS, pdTICKS_TO_MS(xTaskGetTickCount()));
 
     while (true) {
-        int now = gpio_get_level(BUTTON_GPIO);
-        if (now != last_read) {
-            last_read = now;
-            last_change = xTaskGetTickCount();
-        }
-        // accept the new level only after it stayed the same for 50 ms
-        if ((xTaskGetTickCount() - last_change) > pdMS_TO_TICKS(50) &&
-            now != last_stable) {
-            last_stable = now;
-            if (last_stable == 0) {            // pressed
-                safe_log("Button pressed");
-                switch_event_t evt = EVT_TOGGLE;
-                xQueueSend(event_queue, &evt, 0);
-            }
+        int level = gpio_get_level(BUTTON_GPIO);
+        if (debounce_update(&deb, level, pdTICKS_TO_MS(xTaskGetTickCount()))) {
+            safe_log("Button pressed");
+            switch_event_t evt = EVT_TOGGLE;
+            xQueueSend(event_queue, &evt, 0);
         }
         vTaskDelay(pdMS_TO_TICKS(10));
     }
