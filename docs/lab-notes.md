@@ -84,3 +84,10 @@
 - Unit tests (Unity, native env): 9 state machine + 6 light map tests, 15 of 15 passed.
 - Moved multisensor headers into include/. Native build flags (-Iinclude) and the ESP-IDF
   build both still work. Board image builds successfully.
+
+- button_task now uses debounce.c (tested by 6 unit tests). Verified on the DevKit V1:
+  one BOOT press gives one "Button pressed" and one relay toggle.
+- Upload failed twice: first "could not open port COM7" (board not detected), then
+  "could not open port COMx" (I used the placeholder). Fixed by running pio device list
+  and using the real port. COM4 belongs to the ESP32-S3, so I never uploaded the
+  smart switch to it.
