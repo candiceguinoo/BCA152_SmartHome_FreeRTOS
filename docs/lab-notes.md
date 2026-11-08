@@ -91,3 +91,7 @@
   "could not open port COMx" (I used the placeholder). Fixed by running pio device list
   and using the real port. COM4 belongs to the ESP32-S3, so I never uploaded the
   smart switch to it.
+
+- Static analysis: ran cppcheck through PlatformIO (pio check) on smart_switch and
+  multisensor with warning, style and performance checks. Both reported "No defects found".
+  The native test environment is ignored by pio check, as expected.
