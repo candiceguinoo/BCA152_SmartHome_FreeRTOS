@@ -95,3 +95,8 @@
 - Static analysis: ran cppcheck through PlatformIO (pio check) on smart_switch and
   multisensor with warning, style and performance checks. Both reported "No defects found".
   The native test environment is ignored by pio check, as expected.
+
+- Multisensor sdkconfig.defaults first had 4MB flash by mistake (copied from the DevKit V1).
+  The N16R8 has 16MB, so I set FLASHSIZE_16MB, deleted the generated sdkconfig and rebuilt.
+- After the rebuild the DHT11 timed out and the LDR read random values (floating pin).
+  Cause: loose breadboard wiring. Reseating the wires fixed both sensors.
