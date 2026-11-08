@@ -62,6 +62,7 @@
   FAULT needs 3 failed reads in a row because single DHT11 failures are normal.
   Humidity thresholds use hysteresis (85 % on, 80 % off).
 
+- reated debounce.c/h in multisensor/src by mistake. Moved them to smart_switch/src before committing
 ## Troubleshooting
 
 - PlatformIO created a nested smart_switch/smart_switch folder. Moved the files up one level.
@@ -79,3 +80,7 @@
   HUMIDITY_LIMIT to 55 % and HUMIDITY_LIMIT_CLEAR to 50 %. Breathing on the DHT11 raised it
   to 68-78 % and the state went NORMAL -> WARNING. After it dried, humidity fell to 49 % and
   the state returned WARNING -> NORMAL. Restored the limits to 85 % / 80 %.
+
+- Unit tests (Unity, native env): 9 state machine + 6 light map tests, 15 of 15 passed.
+- Moved multisensor headers into include/. Native build flags (-Iinclude) and the ESP-IDF
+  build both still work. Board image builds successfully.
