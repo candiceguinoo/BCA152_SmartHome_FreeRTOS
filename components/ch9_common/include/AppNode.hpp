@@ -116,10 +116,11 @@ public:
         }
         esp_rmaker_node_add_device(m_rmaker_node, m_device);
 
-        esp_rmaker_ota_enable_default();   // OTA service (v2.1.0 API)
-        app_insights_enable();
+        esp_rmaker_ota_enable_default();          // OTA service (v2.1.0 API)
+        esp_rmaker_timezone_service_enable();     // timezone set from the phone app
         esp_rmaker_schedule_enable();
         esp_rmaker_scenes_enable();
+        app_insights_enable();                    // needs CONFIG_ESP_INSIGHTS_ENABLED=y
     }
 
     virtual void start()
