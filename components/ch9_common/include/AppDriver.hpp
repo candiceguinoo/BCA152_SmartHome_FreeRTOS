@@ -1,7 +1,7 @@
 #pragma once
 #include <esp_log.h>
 #include <nvs_flash.h>
-#include <app_wifi.h>
+#include <app_network.h>
 
 namespace app
 {
@@ -17,12 +17,12 @@ public:
             nvs_flash_erase();
             nvs_flash_init();
         }
-        app_wifi_init();
+        app_network_init();
     }
 
     void start()
     {
-        app_wifi_start(POP_TYPE_RANDOM);
+        app_network_start(POP_TYPE_RANDOM);
     }
 };
 } // namespace app
