@@ -14,12 +14,10 @@
 #include <esp_rmaker_standard_params.h>
 #include <esp_rmaker_standard_devices.h>
 #include <esp_rmaker_common_events.h>
-#include <esp_rmaker_utils.h>
-#include <app_insights.h>
 #include <esp_rmaker_ota.h>
 #include <esp_rmaker_schedule.h>
-#include <esp_rmaker_mqtt.h>
 #include <esp_rmaker_scenes.h>
+#include <app_insights.h>
 
 namespace app
 {
@@ -97,7 +95,6 @@ public:
         esp_event_handler_register(RMAKER_OTA_EVENT, ESP_EVENT_ANY_ID,
                                    &eventHandler, this);
 
-        esp_rmaker_time_set_timezone(CONFIG_ESP_RMAKER_DEF_TIMEZONE);
         esp_rmaker_config_t rainmaker_cfg = {
             .enable_time_sync = true,
         };
@@ -119,17 +116,7 @@ public:
         }
         esp_rmaker_node_add_device(m_rmaker_node, m_device);
 
-        esp_rmaker_ota_config_t ota_config = {};
-        ota_config.server_cert = ESP_RMAKER_OTA_DEFAULT_SERVER_CERT;
-        esp_rmaker_ota_enable(&ota_config, OTA_USING_PARAMS);
-
-        esp_rmaker_system_serv_config_t system_serv_config = {
-            .flags = RMAKER_EVENT_REBOOT | RMAKER_EVENT_WIFI_RESET,
-            .reboot_seconds = 2,
-            .reset_seconds = 2,
-            .reset_reboot_seconds = 2};
-        esp_rmaker_system_service_enable(&system_serv_config);
-
+        esp_rmaker_ota_enable_default();   // OTA service (v2.1.0 API)
         app_insights_enable();
         esp_rmaker_schedule_enable();
         esp_rmaker_scenes_enable();
