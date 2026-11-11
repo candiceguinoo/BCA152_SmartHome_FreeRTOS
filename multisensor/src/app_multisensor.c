@@ -27,7 +27,7 @@ static void init_sensor_device(esp_rmaker_device_t *device, void *arg)
 
     humidity_param = esp_rmaker_param_create(
         "Humidity",
-        NULL,
+        "esp.param.humidity",
         esp_rmaker_float(0.0f),
         PROP_FLAG_READ | PROP_FLAG_TIME_SERIES
     );
