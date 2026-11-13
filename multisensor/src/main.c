@@ -17,7 +17,7 @@
 #include "state_machine.h"
 #include "app_multisensor.h"
 
-#define DHT_GPIO GPIO_NUM_5Select-String -Path .\multisensor\src\main.c -Pattern "DHT_GPIO|LDR_ADC_CHANNEL"
+#define DHT_GPIO         GPIO_NUM_4
 #define LDR_ADC_CHANNEL ADC_CHANNEL_4
 #define LDR_INVERTED 0
 
@@ -346,7 +346,7 @@ void app_main(void)
     }
 
     safe_log(ESP_LOG_INFO, "Multisensor starting (firmware 1.0.1)");
-    
+
     // Initialize RainMaker.
     esp_err_t err = app_multisensor_init();
 
