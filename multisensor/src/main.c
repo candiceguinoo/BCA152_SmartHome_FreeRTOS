@@ -17,21 +17,21 @@
 #include "state_machine.h"
 #include "app_multisensor.h"
 
-#define DHT_GPIO         GPIO_NUM_4
-#define LDR_ADC_CHANNEL  ADC_CHANNEL_4
-#define LDR_INVERTED     0
+#define DHT_GPIO GPIO_NUM_4
+#define LDR_ADC_CHANNEL ADC_CHANNEL_4
+#define LDR_INVERTED 0
 
-#define HUMIDITY_LIMIT        85
-#define HUMIDITY_LIMIT_CLEAR  80
-#define DHT_MAX_FAILS         3
+#define HUMIDITY_LIMIT 85
+#define HUMIDITY_LIMIT_CLEAR 80
+#define DHT_MAX_FAILS 3
 
 #define RAINMAKER_REPORT_INTERVAL_MS 5000
 
-#define BIT_DHT_OK          (1 << 0)
-#define BIT_LDR_OK          (1 << 1)
-#define BIT_DHT_FAULT       (1 << 2)
-#define BIT_LIMIT_EXCEEDED  (1 << 3)
-#define BIT_LIMIT_CLEARED   (1 << 4)
+#define BIT_DHT_OK (1 << 0)
+#define BIT_LDR_OK (1 << 1)
+#define BIT_DHT_FAULT (1 << 2)
+#define BIT_LIMIT_EXCEEDED (1 << 3)
+#define BIT_LIMIT_CLEARED (1 << 4)
 
 static const char *TAG = "multisensor";
 
@@ -170,7 +170,6 @@ static void report_task(void *arg)
     int light = 0;
 
     bool limit_active = false;
-    bool dht_ready = false;
     bool light_ready = false;
     bool first_report_done = false;
 
@@ -182,7 +181,6 @@ static void report_task(void *arg)
             if (r.type == READING_DHT) {
                 temperature = r.temperature;
                 humidity = r.humidity;
-                dht_ready = true;
 
                 if (!limit_active && humidity >= HUMIDITY_LIMIT) {
                     limit_active = true;
@@ -216,8 +214,9 @@ static void report_task(void *arg)
                 light
             );
 
-            // Publish only after BOTH sensors have valid readings.
-            if (dht_ready && light_ready) {
+            // Report when the LDR has a valid reading.
+            // DHT11 failures will not block Light updates.
+            if (light_ready) {
 
                 TickType_t now = xTaskGetTickCount();
 
