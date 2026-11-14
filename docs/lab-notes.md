@@ -1,102 +1,131 @@
 ﻿# Lab Notes
 
-## Hardware Substitutions
+Development log for the BCA152 Smart Home and FreeRTOS Multisensor project. It records the problems I encountered, what I tried, and how I fixed them. Formal test results are in [smart-plug-testing.md](smart-plug-testing.md) and [multisensor-testing.md](multisensor-testing.md).
 
-| Book | My hardware |
-|---|---|
-| ESP32-C3 DevKitM-1 (plug) | ESP32 DevKit V1 (ESP32-WROOM-32) |
-| ESP32-S3 Box Lite | ESP32-S3 N16R8 (no built-in display) |
-| BME280 | DHT11 |
-| TSL2561 | Photoresistor (LDR) |
+## 1. Hardware substitutions
 
-## Development Log
+| Book | My hardware | Notes |
+|---|---|---|
+| ESP32-C3 DevKitM-1 (plug) | ESP32 DevKit V1 (ESP32-WROOM-32) | 4 MB flash, relay on GPIO19 |
+| ESP32-S3 Box Lite (multisensor) | ESP32-S3 N16R8 | 16 MB flash, no built-in display |
+| BME280 | DHT11 (3-pin module) | Temperature and humidity only |
+| TSL2561 | LDR module (VCC, GND, AO, DO) | AO connected to the ADC, DO unused |
+| 1-channel relay | 2-channel relay module | Only IN1 is used, active-low |
 
-(Write what I tried, what failed, and what fixed it.)
+## 2. Project setup
 
-- PlatformIO created a nested smart_switch/smart_switch folder. Moved files up one level.
-  Build failed with FileNotFoundError on the old nested src path (stale .pio cache).
-  Fixed by deleting .pio and reloading the window.
+- Created the repository with a README and `.gitignore`, then created separate PlatformIO projects for `smart_switch` and `multisensor` using ESP-IDF.
+- PlatformIO created a nested `smart_switch/smart_switch` folder. I moved the files up one level. Deleting the old `.pio` cache fixed the build error caused by the previous path.
+- When `pio` was not recognized in new terminals, I used the PlatformIO executable or configured a PowerShell alias.
+- Added generated `sdkconfig.*` files to `.gitignore`.
+- Fixed unreadable serial output by using 115200 baud instead of 9600.
+- Used `pio device list` to identify the correct COM ports. COM4 belongs to the ESP32-S3 multisensor board, while COM7 belongs to the smart switch.
+- Fixed an upload issue by holding BOOT, tapping EN, and releasing BOOT.
+- Reconnected the ESP32-S3 using its UART port and a data-capable USB cable when it disappeared from the COM list.
+- Moved `debounce.c` and `debounce.h` from the wrong project folder into `smart_switch/src`.
 
-- LED did not blink on GPIO2 even though the serial log showed toggling. Moved the external
-  LED to GPIO4 and it blinks correctly. GPIO2 is a boot-strapping pin, so it may be affected
-  by the board's onboard circuitry.
+## 3. Smart Plug (`smart_switch`, ESP32 DevKit V1)
 
-- Relay task on GPIO19 (IN1 of a 2-channel module) toggles every 2 s. Serial log timestamps
-  confirm 2000 ms period. Relay clicks match the log. Flash driver prints a harmless
-  "generic chip" notice at boot.
+### FreeRTOS firmware
 
-- BOOT button (GPIO0) debounced in software with a 50 ms stable-time check.
-  Tested on hardware: each press toggles the relay exactly once, no double toggles.
+- **LED:** The external LED did not work as expected on GPIO2, so I moved it to GPIO4. It blinked correctly after the change.
+- **Relay:** The relay task on GPIO19 toggled every 2 seconds. The serial timestamps and relay clicks confirmed the timing.
+- **Button:** The BOOT button on GPIO0 uses a 50 ms debounce check. Each press toggles the relay once.
+- **Queue:** `button_task` sends toggle events through a FreeRTOS queue, and `relay_task` receives them and controls the relay.
+- **Mutex:** `log_mutex` and `safe_log()` prevent task messages from being printed at the same time.
+- **Debounce module:** Moved the debounce logic into `debounce.c` so it could be tested on the PC. All 6 debounce unit tests passed.
+- **Partitions:** Added a custom partition table with two OTA application slots and configured the board for 4 MB flash.
 
-- Refactored: button_task now sends EVT_TOGGLE to a FreeRTOS queue (length 5).
-  relay_task blocks on the queue and toggles the relay. Behavior on hardware unchanged.
+### RainMaker integration
 
-- Added log_mutex (FreeRTOS mutex) and safe_log() so button_task and relay_task never
-  print at the same time. Tested: one press gives "Button pressed" then "Relay ON/OFF".
+- Added ESP RainMaker v2.1.0 as a Git submodule and created the shared `ch9_common` component.
+- Updated the project for the newer RainMaker version, including the use of `app_network` and `esp_rmaker_ota_enable_default()`.
+- Registered the Smart Plug as a standard `esp.device.plug` device with a power parameter.
+- Physical button presses and RainMaker commands use the same queue. The relay state is reported to RainMaker after changes.
+- Successfully controlled the plug through the ESP RainMaker app.
+- Successfully tested Alexa voice commands to turn the plug ON and OFF.
+- Tested RainMaker schedules and scenes successfully.
+- Completed the Smart Plug OTA update to firmware version 1.0.1. The firmware was uploaded to RainMaker, the OTA job completed, and the device rebooted and reconnected. Remote control still worked after the update.
 
-## Multisensor
-- Multisensor (ESP32-S3 N16R8, CH343 UART port on COM4) boots with 16 MB flash and custom
-  partitions.csv. Heartbeat task prints every 1000 ms.
+### Automation
 
-- DHT11 (3-pin module) on GPIO4 read with a self-contained bit-banged driver.
-  Verified on hardware: 29 C / 74 % at rest, humidity rose to 93 % when breathed on.
-  DHT11 resolution is 1 C, accuracy about +/- 2 C.
+- Created an automation using the Greenhouse Sensors light reading:
+  - **IF:** Greenhouse Sensors → Light > 2
+  - **THEN:** Plug → Power = false (OFF)
+- The automation successfully sent the OFF command, and the relay switched OFF.
 
-- LDR module (VCC, GND, AO, DO) with on-board divider. AO on GPIO5 (ADC1 ch4), DO unused.
-  Ambient raw about 600-900 (intensity 14-21), torch raw about 2700-3700 (intensity 66-91).
-  Brighter light gives higher raw, so mapping is direct (LDR_INVERTED = 0).
-  DHT11 and LDR tasks run together without problems.
+## 4. Multisensor (`multisensor`, ESP32-S3 N16R8)
 
-- Sensor data queue: dht_task and ldr_task send sensor_reading_t messages to a queue
-  (length 10). report_task receives them and prints one combined line:
-  "Temp | Humidity | Light". Verified on hardware.
+### Board bring-up
 
-- Serial output on multisensor is protected by log_mutex through safe_log(), so lines
-  from different tasks never interleave.
+- Configured the board for 16 MB flash and created a custom `partitions.csv`.
+- Fixed the missing partition table error by creating the required partition file.
+- Changed the flash configuration from 4 MB to 16 MB in `sdkconfig.defaults`, removed the generated SDK configuration, and rebuilt the project.
+- Used a heartbeat task to confirm that the board was running and serial output was working.
 
-- State machine (state_machine.c) is a pure function: INIT, NORMAL, WARNING, FAULT.
-  Event group bits: BIT_DHT_OK, BIT_LDR_OK, BIT_DHT_FAULT, BIT_LIMIT_EXCEEDED,
-  BIT_LIMIT_CLEARED. state_task owns the state and wakes only when a bit is set.
-  Tested: INIT -> NORMAL at startup (327 ms). Pulling the DHT11 data wire gave 3
-  failed reads, then NORMAL -> FAULT. Replugging gave FAULT -> NORMAL.
-  FAULT needs 3 failed reads in a row because single DHT11 failures are normal.
-  Humidity thresholds use hysteresis (85 % on, 80 % off).
+### Sensors
 
-- reated debounce.c/h in multisensor/src by mistake. Moved them to smart_switch/src before committing
-## Troubleshooting
+- **DHT11:** Used a self-contained bit-banged driver with checksum validation.
+- The DHT11 DATA wire was initially connected to GPIO4. After troubleshooting, I moved it to GPIO5.
+- **Final DHT11 wiring:** VCC → 3.3V, DATA → GPIO5, GND → GND.
+- **LDR:** The LDR signal wire is connected to GPIO4. Its digital output is unused.
+- Both sensors were tested together and successfully read temperature, humidity, and light values.
 
-- PlatformIO created a nested smart_switch/smart_switch folder. Moved the files up one level.
-- Stale .pio cache caused FileNotFoundError on the old path. Deleted .pio and rebuilt.
-- pio was not recognized in new terminals. Fixed with Set-Alias or the PlatformIO terminal.
-- Serial monitor showed garbage at 9600 baud. Fixed with -b 115200.
-- LED on GPIO2 did not blink. Moved the LED to GPIO4.
-- Build failed: missing partition table default_16MB.csv. Created my own partitions.csv.
-- Upload failed with "could not open port COMx" because I used the placeholder. Used pio device list.
-- Upload failed with "No serial data received". Fixed by holding BOOT, tapping EN, releasing BOOT.
-- ESP32-S3 disappeared from the COM list. Fixed by replugging into the UART port.
-- Generated sdkconfig.* files were added to .gitignore.
+### FreeRTOS design
 
-- Warning test: the air-conditioned room kept humidity at 36-47 %, so I temporarily lowered
-  HUMIDITY_LIMIT to 55 % and HUMIDITY_LIMIT_CLEAR to 50 %. Breathing on the DHT11 raised it
-  to 68-78 % and the state went NORMAL -> WARNING. After it dried, humidity fell to 49 % and
-  the state returned WARNING -> NORMAL. Restored the limits to 85 % / 80 %.
+- **Queue:** `dht_task` and `ldr_task` send `sensor_reading_t` messages to `report_task`.
+- **Mutex:** `log_mutex` and `safe_log()` prevent messages from different tasks from interleaving.
+- **State machine:** `state_machine.c` handles INIT, NORMAL, WARNING, and FAULT states.
+- **Event group:** Uses `BIT_DHT_OK`, `BIT_LDR_OK`, `BIT_DHT_FAULT`, `BIT_LIMIT_EXCEEDED`, and `BIT_LIMIT_CLEARED`.
+- Tested sensor fault handling by disconnecting the DHT11 DATA wire. Three failed reads caused the state to change from NORMAL to FAULT. Reconnecting the wire returned it to NORMAL.
+- Tested the WARNING state by temporarily lowering the humidity limits and exposing the sensor to my breath. The state changed from NORMAL to WARNING and returned to NORMAL after the humidity decreased.
+- Restored the humidity limits to 85% for the warning threshold and 80% for clearing the warning.
 
-- Unit tests (Unity, native env): 9 state machine + 6 light map tests, 15 of 15 passed.
-- Moved multisensor headers into include/. Native build flags (-Iinclude) and the ESP-IDF
-  build both still work. Board image builds successfully.
+### RainMaker integration
 
-- button_task now uses debounce.c (tested by 6 unit tests). Verified on the DevKit V1:
-  one BOOT press gives one "Button pressed" and one relay toggle.
-- Upload failed twice: first "could not open port COM7" (board not detected), then
-  "could not open port COMx" (I used the placeholder). Fixed by running pio device list
-  and using the real port. COM4 belongs to the ESP32-S3, so I never uploaded the
-  smart switch to it.
+- Registered the device as **Greenhouse Sensors**.
+- Added temperature, humidity, and light intensity parameters.
+- Configured the device to report sensor readings every 5 seconds.
+- BLE provisioning, Wi-Fi connection, and RainMaker registration worked.
+- Temperature, humidity, and light readings appeared in the ESP RainMaker app.
+- Fixed the missing factory NVS partition by adding the `fctry` partition.
+- Erased old Wi-Fi provisioning data and provisioned the device again.
+- Fixed the DHT11 timeout by checking the wiring and moving its DATA connection to GPIO5.
+- Fixed a NimBLE host task stack overflow by increasing `CONFIG_BT_NIMBLE_HOST_TASK_STACK_SIZE` from 4096 to 8192.
+- Sensor readings were still reported even when the RainMaker time-series warning appeared.
 
-- Static analysis: ran cppcheck through PlatformIO (pio check) on smart_switch and
-  multisensor with warning, style and performance checks. Both reported "No defects found".
-  The native test environment is ignored by pio check, as expected.
+## 5. Build problems from RainMaker integration
 
-- Multisensor sdkconfig.defaults first had 4MB flash by mistake (copied from the DevKit V1).
-  The N16R8 has 16MB, so I set FLASHSIZE_16MB, deleted the generated sdkconfig and rebuilt.
-- After the rebuild the DHT11 timed out and the LDR read random values (floating pin).
-  Cause: loose breadboard wiring. Reseating the wires fixed both sensors.
+| Problem | Cause | Fix |
+|---|---|---|
+| Version solving failed | The component path included the Matter controller | Listed only the required RainMaker components |
+| Main target not found | `EXTRA_COMPONENT_DIRS` overwrote PlatformIO's source directory | Used `list(APPEND ...)` |
+| RainMaker certificate not found | ESP-IDF embedded certificate files were not included | Added the required certificates to `board_build.embed_txtfiles` |
+| C++ compiler flags used for C files | PlatformIO build issue after adding C++ files | Converted the firmware to plain C |
+| Multisensor depended on another project's components | The certificate path pointed to `smart_switch` | Used the multisensor project's own managed components |
+
+## 6. Testing and analysis
+
+- **Unit tests:** All 15 multisensor tests passed: 9 state machine tests and 6 light mapping tests. All 6 smart switch debounce tests also passed.
+- **Static analysis:** `pio check` with cppcheck reported no defects in either project.
+- **Hardware tests:** The Smart Plug and Multisensor hardware test results are documented in their separate testing reports.
+
+## 7. Alexa
+
+- Alexa successfully detected **Plug** and **Greenhouse Sensors** after account linking.
+- Voice commands to turn the Smart Plug ON and OFF both worked.
+- Asking Alexa for the temperature worked and returned approximately 29°C during testing.
+- Humidity voice requests were not supported by the available Alexa interface.
+- Temperature, humidity, and light readings were visible in the ESP RainMaker app.
+
+## 8. Cleanup
+
+- Removed unused C++ node classes after converting the firmware to plain C.
+- Removed a VS Code workspace file from `multisensor/src` because it was being treated as a source file.
+- Removed the local backup of the pre-RainMaker files. The Git history keeps the earlier code.
+
+## 9. Remaining limitations
+
+- The Smart Plug has no separate state machine or event group implementation. These are implemented in the multisensor project.
+- Multisensor OTA was not tested. The completed OTA test was for the Smart Plug.
+- The available Alexa interface did not support humidity voice requests.
