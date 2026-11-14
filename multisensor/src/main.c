@@ -345,7 +345,7 @@ void app_main(void)
         return;
     }
 
-    safe_log(ESP_LOG_INFO, "Multisensor starting (firmware 1.0.1)");
+    safe_log(ESP_LOG_INFO, "Multisensor starting (firmware 1.0.3)");
 
     // Initialize RainMaker.
     esp_err_t err = app_multisensor_init();

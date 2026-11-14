@@ -9,5 +9,7 @@ list(APPEND EXTRA_COMPONENT_DIRS
     ${RMAKER_PATH}/examples/common/rmaker_app_insights
 )
 
+set(PROJECT_VER "1.0.3")
+
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(multisensor)
