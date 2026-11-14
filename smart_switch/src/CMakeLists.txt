@@ -1,8 +1,6 @@
-
 idf_component_register(
     SRCS
-        "main.c"
-        "app_plug.c"
+        "main.cpp"
         "debounce.c"
 
     INCLUDE_DIRS
@@ -11,6 +9,6 @@ idf_component_register(
 
     REQUIRES
         ch9_common
-        driver
+        esp_driver_gpio
         esp_rainmaker
 )
