@@ -17,8 +17,8 @@
 #include "state_machine.h"
 #include "app_multisensor.h"
 
-#define DHT_GPIO         GPIO_NUM_4
-#define LDR_ADC_CHANNEL ADC_CHANNEL_4
+#define DHT_GPIO         GPIO_NUM_5
+#define LDR_ADC_CHANNEL ADC_CHANNEL_3
 #define LDR_INVERTED 0
 
 #define HUMIDITY_LIMIT 85
